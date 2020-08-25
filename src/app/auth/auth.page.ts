@@ -1,7 +1,8 @@
-import { AuthService } from './auth.service';
+import { Observable } from 'rxjs';
+import { AuthService, AuthResponseData } from './auth.service';
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { LoadingController } from '@ionic/angular';
+import { LoadingController, AlertController } from '@ionic/angular';
 import { NgForm } from '@angular/forms';
 
 @Component({
@@ -14,60 +15,101 @@ export class AuthPage implements OnInit {
   isLogin = true
 
   constructor(
-    private authService: AuthService, 
+    private authService: AuthService,
     private router: Router,
-    private loadingController: LoadingController
-    ) { }
+    private loadingController: LoadingController,
+    private alertController: AlertController
+  ) { }
 
   ngOnInit() {
   }
 
-  onSubmit(authForm: NgForm){
-    if(!authForm.valid){
+  onSubmit(authForm: NgForm) {
+    if (!authForm.valid) {
       return
     }
 
     const email = authForm.value.email
     const password = authForm.value.password
 
-    console.log(email, password)
-    
-    if(this.isLogin){
-
-    }else{
-
-    }
+    this.authenticate(email, password)
+    authForm.reset()
 
   }
-  onLogin(){
+
+
+  onSignup() {
+
+  }
+
+  private showAlert(message: string) {
+    this.alertController.create({
+      header: 'Authentication failed',
+      message,
+      buttons: ['Okay']
+    }).then(alertEl => {
+      alertEl.present()
+    },
+    )
+  }
+
+  authenticate(email: string, password: string) {
     this.isLoading = true
-    this.authService.login()
+
 
     this.loadingController
-    .create(
-      {keyboardClose: true,
-       message: 'Logging in...'})
-    .then(loadingEl => {
-      loadingEl.present()
+      .create(
+        {
+          keyboardClose: true,
+          message: 'Logging in...'
+        })
+      .then(loadingEl => {
+        loadingEl.present()
+        let authObs: Observable<AuthResponseData>
 
-      setTimeout(()=>{
-        this.isLoading = false
-        loadingEl.dismiss()
-        this.router.navigateByUrl('/places/tabs/discover')
-      }, 1500)
+        if (this.isLogin) {
+          authObs = this.authService.login(email, password)
+            
+        }else{
+          authObs = this.authService.singup(email, password)
+        }
+       
+          authObs.subscribe(response => {
+            //console.log(response)
+
+            this.isLoading = false
+            loadingEl.dismiss()
+            this.router.navigateByUrl('/places/tabs/discover')
+
+          }, errorResponse => {
+
+            loadingEl.dismiss()
+            const code = errorResponse.error.error.message
+
+            let message = 'Could not sign you up, please try again.'
+
+            if (code === 'EMAIL_EXISTS') {
+              message = 'This email address already exists!'
+            }else if( code ==='EMAIL_NOT_FOUND'){
+              message = 'E-mail and/or password invalid!'
+            }else if(code === 'INVALID_PASSWORD'){
+              message = 'E-mail and/or password invalid!'
+            }
+
+            this.showAlert(message)
+
+          })
       
-    })
 
-    
-    
-    
+      })
+
   }
 
-  onLogout(){
+  onLogout() {
     this.authService.logout()
   }
 
-  onSwitchAuthMode(){
+  onSwitchAuthMode() {
     this.isLogin = !this.isLogin
   }
 }
